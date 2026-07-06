@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Socket.IO Test Client — MERN Chat Backend</title>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1c1f26;
+    --text-muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --success: #16a34a;
+    --success-bg: #eafaf0;
+    --danger: #dc2626;
+    --danger-bg: #fdecec;
+    --warn: #d97706;
+    --warn-bg: #fef6e6;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #171a21;
+      --border: #2a2e37;
+      --text: #e7e9ee;
+      --text-muted: #9aa1ad;
+      --accent: #818cf8;
+      --accent-hover: #a5b4fc;
+      --success: #4ade80;
+      --success-bg: #103820;
+      --danger: #f87171;
+      --danger-bg: #3a1414;
+      --warn: #fbbf24;
+      --warn-bg: #3a2c0d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 1.4rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+
+  .banner {
+    display: none;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  .banner.show { display: flex; }
+  .banner code { background: rgba(0,0,0,0.08); padding: 1px 5px; border-radius: 4px; }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    background: var(--danger-bg);
+    color: var(--danger);
+  }
+  .status-pill.connected { background: var(--success-bg); color: var(--success); }
+  .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .grid.top { grid-template-columns: 1fr; margin-bottom: 16px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .card h2 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 10px 0 4px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    color: var(--text);
+  }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    padding: 7px 13px;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: white; }
+  button.ghost { background: transparent; }
+
+  .log-card { margin-top: 16px; }
+  #log {
+    height: 320px;
+    overflow-y: auto;
+    background: #0b0d12;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+  #log:empty::before { content: "No events yet — connect and try an action."; color: #545b68; }
+  .entry { white-space: pre-wrap; word-break: break-word; }
+  .entry .time { color: #545b68; margin-right: 8px; }
+  .entry.sent .label { color: #7dd3fc; }
+  .entry.received .label { color: #86efac; }
+  .entry.error .label { color: #fca5a5; }
+  .entry.system .label { color: #d1d5db; }
+  .entry .payload { color: #9aa1ad; }
+
+  footer { margin-top: 24px; color: var(--text-muted); font-size: 0.78rem; text-align: center; }
+
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Socket.IO Test Client</h1>
+  <p>MERN Chat Backend — drives every event in <code>socket.js</code> directly, no REST/Swagger involved.</p>
+</header>
+
+<div id="fileWarning" class="banner">
+  <span>&#9888;</span>
+  <span>
+    This page is open via <code>file://</code>. The server's Socket.IO CORS only allows
+    <code>http://localhost:5173</code>. Serve this folder instead: <code>npx serve -l 5173 docs</code>,
+    then open <code>http://localhost:5173/socket-test-client.html</code> — otherwise you'll see
+    <code>connect_error: xhr poll error</code>.
+  </span>
+</div>
+
+<div class="grid top">
+  <div class="card">
+    <h2>
+      Connection
+      <span id="status" class="status-pill"><span class="dot"></span><span id="statusText">disconnected</span></span>
+    </h2>
+    <label>Server URL</label>
+    <input id="serverUrl" value="http://localhost:5000" />
+    <label>Auth user &mdash; sent as <code>socket.handshake.auth.user</code> (server trusts this as-is, no JWT check)</label>
+    <textarea id="authUser" rows="2"></textarea>
+    <div class="btn-row">
+      <button id="connectBtn" class="primary">Connect</button>
+      <button id="disconnectBtn">Disconnect</button>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Room</h2>
+    <label>Group ID</label>
+    <input id="groupId" value="group-123" />
+    <div class="btn-row">
+      <button id="joinBtn">Join room</button>
+      <button id="leaveBtn" class="ghost">Leave room</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Message</h2>
+    <label>Content</label>
+    <input id="messageContent" value="Hello from test client" />
+    <div class="btn-row">
+      <button id="sendBtn" class="primary">Send "new message"</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Typing indicator</h2>
+    <label>&nbsp;</label>
+    <div class="btn-row" style="margin-top: 0;">
+      <button id="typingBtn">Start typing</button>
+      <button id="stopTypingBtn" class="ghost">Stop typing</button>
+    </div>
+  </div>
+</div>
+
+<div class="card log-card">
+  <h2>
+    Event log
+    <button id="clearLogBtn" class="ghost" style="margin: 0; padding: 3px 10px; font-size: 0.75rem;">Clear</button>
+  </h2>
+  <div id="log"></div>
+</div>
+
+<footer>Blue = sent &nbsp;&middot;&nbsp; Green = received &nbsp;&middot;&nbsp; Red = error &nbsp;&middot;&nbsp; Gray = connection lifecycle</footer>
+
+<script>
+  let socket = null;
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  const statusTextEl = document.getElementById("statusText");
+  const authUserEl = document.getElementById("authUser");
+  const fileWarning = document.getElementById("fileWarning");
+
+  if (location.protocol === "file:") fileWarning.classList.add("show");
+
+  // Give each tab a distinct default identity so two tabs can chat without manual edits.
+  const randomId = Math.random().toString(36).slice(2, 8);
+  authUserEl.value = JSON.stringify({ _id: `user-${randomId}`, username: `Guest-${randomId}` });
+
+  function log(kind, label, payload) {
+    const time = new Date().toLocaleTimeString();
+    const entry = document.createElement("div");
+    entry.className = `entry ${kind}`;
+    entry.innerHTML = `<span class="time">${time}</span><span class="label">${label}</span>` +
+      (payload !== undefined ? ` <span class="payload">${escapeHtml(JSON.stringify(payload))}</span>` : "");
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  }
+
+  function setStatus(connected) {
+    statusEl.classList.toggle("connected", connected);
+    statusTextEl.textContent = connected ? "connected" : "disconnected";
+  }
+
+  function requireSocket() {
+    if (!socket || !socket.connected) {
+      log("error", "not connected", "click Connect first");
+      return false;
+    }
+    return true;
+  }
+
+  document.getElementById("connectBtn").onclick = () => {
+    if (socket) socket.disconnect();
+
+    let user;
+    try {
+      user = JSON.parse(authUserEl.value);
+    } catch (e) {
+      log("error", "invalid JSON", "Auth user must be valid JSON");
+      return;
+    }
+
+    const url = document.getElementById("serverUrl").value;
+    socket = io(url, { auth: { user } });
+
+    socket.on("connect", () => { setStatus(true); log("system", "connect", { id: socket.id }); });
+    socket.on("disconnect", (reason) => { setStatus(false); log("system", "disconnect", { reason }); });
+    socket.on("connect_error", (err) => log("error", "connect_error", { message: err.message }));
+
+    // server -> client events from socket.js
+    socket.on("users in room", (users) => log("received", "users in room", users));
+    socket.on("notification", (payload) => log("received", "notification", payload));
+    socket.on("user left", (userId) => log("received", "user left", userId));
+    socket.on("message received", (message) => log("received", "message received", message));
+    socket.on("user typing", (payload) => log("received", "user typing", payload));
+    socket.on("user stop typing", (payload) => log("received", "user stop typing", payload));
+  };
+
+  document.getElementById("disconnectBtn").onclick = () => {
+    if (socket) socket.disconnect();
+  };
+
+  document.getElementById("joinBtn").onclick = () => {
+    if (!requireSocket()) return;
+    const groupId = document.getElementById("groupId").value;
+    socket.emit("join room", groupId);
+    log("sent", "emit join room", groupId);
+  };
+
+  document.getElementById("leaveBtn").onclick = () => {
+    if (!requireSocket()) return;
+    const groupId = document.getElementById("groupId").value;
+    socket.emit("leave room", groupId);
+    log("sent", "emit leave room", groupId);
+  };
+
+  document.getElementById("sendBtn").onclick = () => {
+    if (!requireSocket()) return;
+    const groupId = document.getElementById("groupId").value;
+    const content = document.getElementById("messageContent").value;
+    const message = { groupId, content };
+    socket.emit("new message", message);
+    log("sent", "emit new message", message);
+  };
+
+  document.getElementById("typingBtn").onclick = () => {
+    if (!requireSocket()) return;
+    const groupId = document.getElementById("groupId").value;
+    let username;
+    try { username = JSON.parse(authUserEl.value).username; } catch (e) { username = undefined; }
+    socket.emit("typing", { groupId, username });
+    log("sent", "emit typing", { groupId, username });
+  };
+
+  document.getElementById("stopTypingBtn").onclick = () => {
+    if (!requireSocket()) return;
+    const groupId = document.getElementById("groupId").value;
+    socket.emit("stop typing", { groupId });
+    log("sent", "emit stop typing", { groupId });
+  };
+
+  document.getElementById("clearLogBtn").onclick = () => { logEl.innerHTML = ""; };
+</script>
+
+</body>
+</html>

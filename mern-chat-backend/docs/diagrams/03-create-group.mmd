@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant Client
+    participant Protect as protect middleware
+    participant IsAdmin as isAdmin middleware
+    participant Router as groupRoutes.js
+    participant DB as MongoDB Group and User
+
+    Client->>Protect: POST /api/groups/ name, description, Bearer token
+    Protect->>Protect: jwt.verify(token, JWT_SECRET)
+    Protect->>DB: User.findById(decoded.id) select minus password
+    DB-->>Protect: user
+    Protect->>Protect: req.user = user
+    Protect->>IsAdmin: next()
+
+    alt req.user.isAdmin is true
+        IsAdmin->>Router: next()
+        Router->>DB: Group.create name, description, admin, members
+        DB-->>Router: group
+        Router->>DB: Group.findById(group._id) populate admin and members
+        DB-->>Router: populatedGroup
+        Router-->>Client: 201 populatedGroup
+    else Not an admin
+        IsAdmin-->>Client: 403 Not authorized admin only
+    end
+
+    Note over Protect,Client: If token missing or invalid, protect returns 401 Not authorized

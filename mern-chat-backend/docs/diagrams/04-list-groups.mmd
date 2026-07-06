@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant Client
+    participant Protect as protect middleware
+    participant Router as groupRoutes.js
+    participant DB as MongoDB Group
+
+    Client->>Protect: GET /api/groups/ Bearer token
+    Protect->>DB: User.findById(decoded.id)
+    DB-->>Protect: user
+    Protect->>Router: next() req.user set
+    Router->>DB: Group.find() populate admin and members
+    DB-->>Router: groups array
+    Router-->>Client: 200 groups array
+
+    Note over Protect,Client: If token missing or invalid, protect returns 401 Not authorized

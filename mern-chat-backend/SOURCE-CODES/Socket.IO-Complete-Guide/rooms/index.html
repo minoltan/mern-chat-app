@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket.IO Chat</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <div class="chat-container">
+      <h1>Socket.IO Chat</h1>
+
+      <!-- Add room controls -->
+      <div class="room-controls">
+        <input type="text" id="roomInput" placeholder="Enter room name" />
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="leaveRoom()">Leave Room</button>
+        <div id="currentRoom">Current Room: None</div>
+      </div>
+
+      <!-- Existing chat elements -->
+      <div class="messages" id="messageArea"></div>
+      <div class="input-container">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="Type your message..."
+        />
+        <button class="send-button">Send</button>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/chat.js"></script>
+  </body>
+</html>

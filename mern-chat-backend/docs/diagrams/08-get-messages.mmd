@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant Client
+    participant Protect as protect middleware
+    participant Router as messageRoutes.js
+    participant DB as MongoDB Message
+
+    Client->>Protect: GET /api/messages/:groupId Bearer token
+    Protect->>Router: next() req.user set
+    Router->>DB: Message.find group equals groupId, populate sender, sort createdAt
+    DB-->>Router: messages array
+    Router-->>Client: 200 messages array
+
+    Note over Router,Client: catch returns 400 with error.Message, a bug, should be error.message

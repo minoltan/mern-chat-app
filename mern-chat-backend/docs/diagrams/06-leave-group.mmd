@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant Client
+    participant Protect as protect middleware
+    participant Router as groupRoutes.js
+    participant DB as MongoDB Group
+
+    Client->>Protect: POST /api/groups/:groupId/leave Bearer token
+    Protect->>Router: next() req.user set
+    Router->>DB: Group.findById(groupId)
+    DB-->>Router: group
+
+    alt Group not found
+        Router-->>Client: 404 Group not found
+    else Not a member
+        Router-->>Client: 400 Not a member of this group
+    else Is a member
+        Router->>Router: filter req.user._id out of group.members
+        Router->>DB: group.save()
+        DB-->>Router: saved group
+        Router-->>Client: 200 Successfully left the group
+    end

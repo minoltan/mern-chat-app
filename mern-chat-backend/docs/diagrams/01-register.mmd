@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant Client
+    participant Router as userRoutes.js
+    participant DB as MongoDB User
+
+    Client->>Router: POST /api/users/register username, email, password
+    Router->>DB: User.findOne(email)
+    DB-->>Router: existing user or null
+
+    alt Email already registered
+        Router-->>Client: 400 User already exists
+    else Email available
+        Router->>DB: User.create(username, email, password)
+        Note right of DB: pre save hook runs, bcrypt.hash(password, 10)
+        DB-->>Router: created user document
+        Router-->>Client: 201 id, username, email
+    end
+
+    Note over Router,Client: On thrown error, catch returns 400 with error.message

@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant Client
+    participant Protect as protect middleware
+    participant Router as messageRoutes.js
+    participant DB as MongoDB Message
+
+    Client->>Protect: POST /api/messages/ content, groupId, Bearer token
+    Protect->>Router: next() req.user set
+    Router->>DB: Message.create sender, content, group
+    DB-->>Router: message
+    Router->>DB: Message.findById(message._id) populate sender
+    DB-->>Router: populatedMessage
+    Router-->>Client: 200 populatedMessage
+
+    Note over Router,Client: catch returns 400 with error.Message, a bug, should be error.message
+    Note over Client: Client separately emits socket new message for realtime relay, this route only persists to DB

@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant Client
+    participant Router as userRoutes.js
+    participant DB as MongoDB User
+
+    Client->>Router: POST /api/users/login email, password
+    Router->>DB: User.findOne(email)
+    DB-->>Router: user or null
+
+    alt User found and password matches
+        Router->>DB: user.matchPassword(password)
+        Note right of DB: bcrypt.compare(password, user.password)
+        DB-->>Router: true
+        Router->>Router: generateToken(user._id)
+        Note right of Router: jwt.sign id, JWT_SECRET, expiresIn 30d
+        Router-->>Client: 200 user object with token
+    else User not found or wrong password
+        Router-->>Client: 401 Invalid email or password
+    end
+
+    Note over Router,Client: On thrown error, catch returns 400 with error.message

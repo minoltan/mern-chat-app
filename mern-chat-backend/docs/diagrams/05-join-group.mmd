@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant Client
+    participant Protect as protect middleware
+    participant Router as groupRoutes.js
+    participant DB as MongoDB Group
+
+    Client->>Protect: POST /api/groups/:groupId/join Bearer token
+    Protect->>Router: next() req.user set
+    Router->>DB: Group.findById(groupId)
+    DB-->>Router: group
+
+    alt Group not found
+        Router-->>Client: 404 Group not found
+    else Already a member
+        Router-->>Client: 400 Already a member of this group
+    else Not yet a member
+        Router->>Router: group.members.push(req.user._id)
+        Router->>DB: group.save()
+        DB-->>Router: saved group
+        Router-->>Client: 200 Successfully joined this group
+    end

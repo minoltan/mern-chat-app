@@ -1,0 +1,33 @@
+sequenceDiagram
+    participant ClientA as Client A
+    participant ClientB as Client B
+    participant Socket as socket.js
+    participant Map as connectedUsers Map
+
+    ClientA->>Socket: io connect with auth user, triggers connection event
+    Socket->>Socket: user = socket.handshake.auth.user, no JWT check
+
+    ClientA->>Socket: emit join room with groupId
+    Socket->>Socket: socket.join(groupId)
+    Socket->>Map: connectedUsers.set socket.id, user and room
+    Socket-->>ClientA: emit users in room, to whole room
+    Socket-->>ClientB: emit users in room, to whole room
+    Socket-->>ClientB: emit notification type USER_JOINED
+
+    ClientA->>Socket: emit typing with groupId and username
+    Socket-->>ClientB: emit user typing with username
+
+    ClientA->>Socket: emit stop typing with groupId
+    Socket-->>ClientB: emit user stop typing with username
+
+    ClientA->>Socket: emit new message with message containing groupId
+    Socket-->>ClientB: emit message received, relay only, no DB write
+
+    ClientA->>Socket: emit leave room with groupId
+    Socket->>Socket: socket.leave(groupId)
+    Socket->>Map: connectedUsers.delete socket.id
+    Socket-->>ClientB: emit user left with user id
+
+    Note over ClientA,Socket: On disconnect event, tab close or network drop
+    Socket->>Map: lookup and delete connectedUsers entry
+    Socket-->>ClientB: emit user left with user id
