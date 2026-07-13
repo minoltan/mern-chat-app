@@ -37,10 +37,11 @@ app.get("/", (req, res) => {
   res.json({
     project: "MERN Chat App using Socket.IO",
     message: "Welcome to MERN Chat Application",
-    developedBy: "MasynTech",
-    website: "www.masynctech.com",
+    developedBy: "Minoltan",
+    website: "www.minoltan.com",
   });
 });
+
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/users", userRouter);
 app.use("/api/groups", groupRouter);
