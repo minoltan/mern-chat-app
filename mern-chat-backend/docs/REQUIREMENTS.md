@@ -106,6 +106,10 @@ This matches the actual Mongoose schemas: [UserModel.js](../models/UserModel.js)
 [GroupModel.js](../models/GroupModel.js), [ChatModel.js](../models/ChatModel.js)
 (the `Message` model).
 
+For how these pieces fit into the running system (client, REST API, Socket.IO,
+database) at both a high level and a module-by-module level, see
+[ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ### 4. Applying ER modeling to MongoDB: reference vs. embed
 
 Relational databases resolve every relationship into foreign keys and join tables.

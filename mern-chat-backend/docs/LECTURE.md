@@ -1,9 +1,10 @@
 # MERN Chat Backend — Technical Walkthrough
 
 This doc explains *how* the backend works and *why* it's built this way. Pair it
-with the sequence diagrams in [`diagrams/`](./diagrams) — each numbered `.mmd`
-file traces one flow step by step (open with a Mermaid live viewer or the
-Mermaid VS Code extension).
+with [ARCHITECTURE.md](./ARCHITECTURE.md) (high-level + low-level component
+diagrams) and the sequence diagrams in [`sequence diagrams/`](./sequence%20diagrams)
+— each numbered `.mmd` file traces one flow step by step (open with a Mermaid
+live viewer or the Mermaid VS Code extension).
 
 ## 1. Big picture
 
