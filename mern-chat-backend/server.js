@@ -1,3 +1,9 @@
+// Node 23+ removed the deprecated Buffer.SlowBuffer, but jsonwebtoken's
+// dependency chain (jws -> jwa -> buffer-equal-constant-time) still reads it
+// at require-time and crashes if it's missing. Polyfill it before anything
+// below can require jsonwebtoken.
+require("buffer").SlowBuffer ??= require("buffer").Buffer;
+
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
