@@ -13,10 +13,59 @@ is used for the frontend because it's a static Vite build — no server needed, 
 ## Prerequisites
 
 - An AWS account with billing enabled
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed and configured (`aws configure`)
+- An IAM user with programmatic access set up (see [Part 0](#part-0--aws-console-setup) below) — don't use root account credentials for the CLI
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
 - [EB CLI](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/eb-cli3-install.html) installed (`pip install awsebcli` or `brew install awsebcli`)
 - A working MongoDB Atlas cluster and connection string (from [SETUP.md](SETUP.md))
 - The app running locally per [SETUP.md](SETUP.md)
+
+---
+
+## Part 0 — AWS console setup
+
+This is a one-time setup per AWS account. Skip to Part 1 if you already have an IAM user with
+CLI access configured.
+
+### 1. Create an AWS account (if you don't have one)
+
+Go to [aws.amazon.com](https://aws.amazon.com) → **Create an AWS Account** and follow the
+signup flow (requires a credit card, even if you stay within the free tier).
+
+### 2. Create an IAM user for the CLI
+
+The root account login should only be used for account-level tasks (billing, closing the
+account) — everyday deploys should use a separate IAM user with just the permissions needed.
+
+1. Sign in to the [AWS Console](https://console.aws.amazon.com/) with your root account.
+2. Go to **IAM → Users → Create user**.
+3. Name it something like `mern-chat-deployer`.
+4. **Permissions options** → **Attach policies directly** → attach these AWS-managed policies:
+   - `AdministratorAccess-AWSElasticBeanstalk`
+   - `AmazonS3FullAccess`
+   - `CloudFrontFullAccess`
+   - `IAMReadOnlyAccess` (Elastic Beanstalk needs to read/create a service role on your behalf)
+
+   > For a personal/lecture project this set is fine. For anything shared with others, scope
+   > these down further — full-access policies are broader than the CLI actually needs.
+5. Create the user.
+
+### 3. Generate an access key
+
+1. Open the new user → **Security credentials** tab.
+2. Under **Access keys**, click **Create access key**.
+3. Select **Command Line Interface (CLI)** as the use case, acknowledge the warning, and continue.
+4. Copy the **Access key ID** and **Secret access key** shown (the secret is only shown once —
+   if you lose it, delete the key and create a new one).
+
+### 4. Configure the AWS CLI with the new user
+
+```bash
+aws configure
+```
+
+Enter the access key ID, secret access key, your preferred region (e.g. `us-east-1`), and
+output format (`json` is fine). This is the credential the rest of this guide's `aws` and `eb`
+commands will use.
 
 ---
 
