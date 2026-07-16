@@ -43,11 +43,19 @@ account) — everyday deploys should use a separate IAM user with just the permi
    - `AdministratorAccess-AWSElasticBeanstalk`
    - `AmazonS3FullAccess`
    - `CloudFrontFullAccess`
-   - `IAMReadOnlyAccess` (Elastic Beanstalk needs to read/create a service role on your behalf)
+   - `IAMFullAccess` (needed because creating the environment in Part 1 involves creating two
+     new IAM roles — a service role and an EC2 instance profile — via **Create role** buttons in
+     the console; read-only access isn't enough to create them)
 
    > For a personal/lecture project this set is fine. For anything shared with others, scope
-   > these down further — full-access policies are broader than the CLI actually needs.
+   > these down further — full-access policies are broader than strictly necessary.
 5. Create the user.
+
+> If you'll be doing the console steps in this guide (Parts 1–2), also enable **console
+> access** for this user (back on the create-user screen, check "Provide user access to the AWS
+> Management Console" and set a password) so you can sign in as them instead of root. Signing in
+> as root works too and is simplest for a one-off personal project — just don't use root for
+> day-to-day work if you plan to keep using this account.
 
 ### 3. Generate an access key
 
@@ -108,24 +116,62 @@ zip -r ../mern-chat-backend.zip . -x "node_modules/*" -x ".git/*" -x ".env" -x "
 
 1. Sign in to the [Elastic Beanstalk console](https://console.aws.amazon.com/elasticbeanstalk/).
 2. Make sure the region selector (top right) is set to the region you want to deploy in.
-3. Click **Create application**.
-4. **Application name**: `mern-chat-backend`.
-5. **Environment tier**: Web server environment.
-6. **Platform**: choose **Node.js**, and leave the platform version at the latest recommended.
-7. **Application code**: select **Upload your code** → **Choose file** → pick
-   `mern-chat-backend.zip` from step 2 → give the version a label (e.g. `initial`).
-8. Click **Configure more options** before creating, so you can set the instance size up front:
-   - Under **Instances**, edit and set instance type to `t3.micro` (covered by the AWS free tier
-     for the first 12 months on a new account).
-   - Everything else can stay at its default for this project.
-9. Click **Create environment** (or **Create app** depending on console version). This
-   provisions an EC2 instance, security group, and load balancer — it takes several minutes.
-   You'll land on the environment dashboard once it's ready, showing a URL like
-   `mern-chat-env.eba-xxxxx.<region>.elasticbeanstalk.com`.
+3. Click **Create application**. This opens a multi-step wizard.
+
+**Step 1 — Configure environment**
+
+1. **Application name**: `mern-chat-backend`.
+2. **Environment name**: leave the auto-filled value (e.g. `Mern-chat-backend-env`), or rename it.
+3. **Platform**: choose **Node.js**, and leave the platform version/branch at the latest
+   recommended.
+4. **Application code**: select **Upload your code** → **Choose file** → pick
+   `mern-chat-backend.zip` from step 2 above → give the version a label (e.g. `initial`).
+5. Click **Next**.
+
+**Step 2 — Configure service access**
+
+Elastic Beanstalk needs two IAM roles before it can provision anything: a **service role** (so
+EB itself can create/manage resources on your behalf) and an **EC2 instance profile** (so the
+EC2 instance it launches can do what the app needs). If this is your first environment, you
+won't have either yet — create both here:
+
+1. **Service role** → click **Create role**. This opens a new tab at IAM's role creation screen,
+   pre-filled for this purpose:
+   - **Trusted entity type**: AWS service (already selected).
+   - **Service or use case**: `Elastic Beanstalk`.
+   - **Use case**: select **Elastic Beanstalk - Environment**.
+   - Click **Next** → **Next** (the required policies are attached automatically) → **Create
+     role**.
+   - Close that tab, go back to the EB wizard tab, and click the refresh icon (↻) next to
+     **Service role** — the new role now appears in the dropdown; select it.
+2. **EC2 instance profile** → click **Create role** the same way:
+   - **Service or use case**: `Elastic Beanstalk` again.
+   - **Use case**: select **Elastic Beanstalk - Compute** this time (not Environment).
+   - Finish creating it, then refresh and select it in the **EC2 instance profile** dropdown.
+3. **EC2 key pair** — optional; skip unless you specifically want SSH access to the instance.
+4. Click **Next**.
+
+**Steps 3–5 — networking/database/tags, instance traffic and scaling, updates/monitoring/logging (all optional)**
+
+You can safely click **Skip to review** here for this project:
+
+- Networking/database/tags: not needed — we're using MongoDB Atlas, not RDS.
+- Instance traffic and scaling: this is where the EC2 instance type lives if you want to set it
+  explicitly. Default is fine, but if you want to be sure you're on the free tier, edit **Instance
+  types** here and set it to `t3.micro`.
+- Updates, monitoring, and logging: this is also where environment variables can be set (covered
+  separately in step 4 below, after the environment exists — either place works).
+
+**Step 6 — Review**
+
+Check the summary and click **Submit**. This provisions an EC2 instance, security group, and
+load balancer — it takes several minutes. You'll land on the environment dashboard once it's
+ready, showing a URL like `mern-chat-env.eba-xxxxx.<region>.elasticbeanstalk.com`.
 
 > **Prefer the CLI?** The [EB CLI](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/eb-cli3-install.html)
-> does steps 3 onward in two commands: `eb init` (interactive prompts for the same choices as
-> above), then `eb create mern-chat-env`.
+> does all of the above in two commands — it creates the service role/instance profile for you
+> automatically: `eb init` (interactive prompts for the same choices as above), then
+> `eb create mern-chat-env`.
 
 ### 4. Set environment variables (console)
 
