@@ -85,7 +85,7 @@ const io = socketio(server, {
 ```
 
 You won't know the final CloudFront URL until Part 2, so for now add a placeholder you'll come
-back and fill in (Part 3, step 1):
+back and fill in (Part 2, step 6):
 
 ```js
 origin: ["http://localhost:5173", process.env.FRONTEND_URL].filter(Boolean),
@@ -94,67 +94,79 @@ origin: ["http://localhost:5173", process.env.FRONTEND_URL].filter(Boolean),
 This reads the production frontend URL from an environment variable instead of hardcoding it,
 so you don't need to edit code again after the CloudFront domain exists.
 
-### 2. Initialize Elastic Beanstalk
+### 2. Package the backend code
 
-From the `mern-chat-backend` directory:
+Elastic Beanstalk's console deploys a zip of your source — it runs `npm install` itself, so
+exclude `node_modules` (and anything else not needed to run the app):
 
 ```bash
 cd mern-chat-backend
-eb init
+zip -r ../mern-chat-backend.zip . -x "node_modules/*" -x ".git/*" -x ".env" -x "docs/*"
 ```
 
-- Select your region.
-- Application name: `mern-chat-backend` (or any name).
-- Platform: **Node.js** (pick the latest supported version).
-- Skip CodeCommit setup.
-- Set up SSH: yes (useful for debugging via `eb ssh` later).
+### 3. Create the application and environment (console)
 
-### 3. Create the environment
+1. Sign in to the [Elastic Beanstalk console](https://console.aws.amazon.com/elasticbeanstalk/).
+2. Make sure the region selector (top right) is set to the region you want to deploy in.
+3. Click **Create application**.
+4. **Application name**: `mern-chat-backend`.
+5. **Environment tier**: Web server environment.
+6. **Platform**: choose **Node.js**, and leave the platform version at the latest recommended.
+7. **Application code**: select **Upload your code** → **Choose file** → pick
+   `mern-chat-backend.zip` from step 2 → give the version a label (e.g. `initial`).
+8. Click **Configure more options** before creating, so you can set the instance size up front:
+   - Under **Instances**, edit and set instance type to `t3.micro` (covered by the AWS free tier
+     for the first 12 months on a new account).
+   - Everything else can stay at its default for this project.
+9. Click **Create environment** (or **Create app** depending on console version). This
+   provisions an EC2 instance, security group, and load balancer — it takes several minutes.
+   You'll land on the environment dashboard once it's ready, showing a URL like
+   `mern-chat-env.eba-xxxxx.<region>.elasticbeanstalk.com`.
 
-```bash
-eb create mern-chat-env
-```
+> **Prefer the CLI?** The [EB CLI](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/eb-cli3-install.html)
+> does steps 3 onward in two commands: `eb init` (interactive prompts for the same choices as
+> above), then `eb create mern-chat-env`.
 
-This provisions an EC2 instance, security group, and load balancer. It takes a few minutes.
-
-### 4. Set environment variables
+### 4. Set environment variables (console)
 
 Elastic Beanstalk needs the same variables as your local `.env`, plus `FRONTEND_URL`:
 
-```bash
-eb setenv MONGO_URL="<your-mongodb-connection-string>" JWT_SECRET="<a-long-random-secret>" FRONTEND_URL="https://<your-cloudfront-domain>"
-```
+1. On the environment dashboard, go to **Configuration** in the left sidebar.
+2. Find the **Updates, monitoring, and logging** category → click **Edit**.
+3. Scroll to **Environment properties** and add:
+   | Name | Value |
+   |---|---|
+   | `MONGO_URL` | `<your-mongodb-connection-string>` |
+   | `JWT_SECRET` | `<a-long-random-secret>` |
+   | `FRONTEND_URL` | *(leave blank for now — you'll fill this in after Part 2)* |
+4. Click **Apply**. Elastic Beanstalk restarts the app with the new variables (no full
+   redeploy needed).
 
-You can leave `FRONTEND_URL` blank for now and update it after Part 2 with the same command.
+> Do not commit these values into the repo or the zip — environment properties are stored on
+> the EB environment itself, separate from your source code.
+>
+> **Prefer the CLI?** `eb setenv MONGO_URL="..." JWT_SECRET="..." FRONTEND_URL="..."` does the
+> same thing in one command.
 
-> Do not commit these values or put them in `.ebextensions` in plaintext — `eb setenv` stores
-> them as environment properties on the EB environment, not in your repo.
-
-### 5. Deploy
-
-```bash
-eb deploy
-```
-
-### 6. Allow Atlas to accept connections from EB
+### 5. Allow Atlas to accept connections from EB
 
 Elastic Beanstalk's EC2 instance has a dynamic public IP unless you attach an Elastic IP. Easiest
 path for a small/personal project: in MongoDB Atlas → **Network Access** → **Add IP Address** →
 allow `0.0.0.0/0` (same tradeoff noted in [SETUP.md](SETUP.md) — fine for this project, not for
 a sensitive production system).
 
-### 7. Verify
+### 6. Verify
 
-```bash
-eb open
-```
-
-This opens the EB URL in a browser — you should see the same JSON welcome response as
-`http://localhost:5000/` locally. Also check:
+On the environment dashboard, click the URL shown near the top (same
+`...elasticbeanstalk.com` address from step 3) — it opens in a browser. You should see the same
+JSON welcome response as `http://localhost:5000/` locally. Also check:
 
 - `https://<your-eb-url>/api-docs` — Swagger docs load
-- `eb logs` — if anything failed, this shows the EC2 instance logs (includes the
-  `Connected to DB` line if Mongo connected successfully)
+- If it's not working, go to the environment's **Logs** page in the left sidebar → **Request
+  logs** → **Last 100 lines**, which shows the same output as running the app locally
+  (including the `Connected to DB` line if Mongo connected successfully).
+
+> **Prefer the CLI?** `eb open` opens the URL directly, and `eb logs` fetches the logs.
 
 Keep the EB URL — you'll need it for `VITE_API_URL` in Part 2.
 
@@ -183,20 +195,31 @@ npm run build
 
 This outputs static files to `dist/`.
 
-### 3. Create an S3 bucket
+### 3. Create an S3 bucket (console)
 
-```bash
-aws s3 mb s3://<your-unique-bucket-name>
-```
+1. Sign in to the [S3 console](https://console.aws.amazon.com/s3/).
+2. Click **Create bucket**.
+3. **Bucket name**: pick something globally unique across all AWS accounts, e.g.
+   `mern-chat-frontend-yourname`.
+4. **AWS Region**: any region is fine — CloudFront serves the content globally regardless of
+   which region the bucket lives in.
+5. **Block Public Access settings**: leave everything **checked/blocked**. The bucket stays
+   private; CloudFront (via OAC, set up in step 5) is what's allowed to read from it, not the
+   public internet directly.
+6. Leave the rest at their defaults and click **Create bucket**.
 
-Bucket names are globally unique across all AWS accounts, so pick something specific
-(e.g. `mern-chat-frontend-yourname`).
+> **Prefer the CLI?** `aws s3 mb s3://<your-unique-bucket-name>`
 
-### 4. Upload the build
+### 4. Upload the build (console)
 
-```bash
-aws s3 sync dist/ s3://<your-unique-bucket-name> --delete
-```
+1. Open the bucket you just created.
+2. Click **Upload** → **Add files** / **Add folder**.
+3. Select the *contents* of `mern-chat-frontend/dist/` (i.e. `index.html`, the `assets/` folder,
+   etc. — not the `dist` folder itself, so files land at the bucket root).
+4. Click **Upload** and wait for it to finish.
+
+> **Prefer the CLI?** `aws s3 sync dist/ s3://<your-unique-bucket-name> --delete` — also useful
+> for redeploys later since it only uploads changed files and removes stale ones.
 
 ### 5. Create a CloudFront distribution
 
@@ -239,25 +262,44 @@ No redeploy needed — `eb setenv` updates the running environment's variables d
 
 ## Redeploying after changes
 
-- **Backend**: `cd mern-chat-backend && eb deploy`
-- **Frontend**: `cd mern-chat-frontend && npm run build && aws s3 sync dist/ s3://<your-bucket-name> --delete`, then invalidate the CloudFront cache so viewers get the new build immediately:
-  ```bash
-  aws cloudfront create-invalidation --distribution-id <your-distribution-id> --paths "/*"
-  ```
+**Backend (console):**
+
+1. Repeat Part 1, step 2 to produce a fresh `mern-chat-backend.zip`.
+2. On the environment dashboard, click **Upload and deploy**.
+3. Choose the new zip, give it a new version label, and click **Deploy**.
+
+**Frontend (console):**
+
+1. `npm run build` to produce a fresh `dist/`.
+2. In the S3 console, upload the new `dist/` contents (overwriting the existing files).
+3. In the CloudFront console, open your distribution → **Invalidations** tab → **Create
+   invalidation** → path `/*` → **Create invalidation**. This clears the CDN cache so viewers
+   get the new build instead of a stale cached copy.
+
+> **Prefer the CLI?**
+> - Backend: `cd mern-chat-backend && eb deploy`
+> - Frontend: `cd mern-chat-frontend && npm run build && aws s3 sync dist/ s3://<your-bucket-name> --delete`, then `aws cloudfront create-invalidation --distribution-id <your-distribution-id> --paths "/*"`
 
 ## Tearing down (avoid ongoing charges)
 
 This project incurs AWS costs while the environment/bucket/distribution exist (EB runs an EC2
 instance + load balancer continuously). To tear everything down:
 
-```bash
-cd mern-chat-backend
-eb terminate mern-chat-env
-```
+**Backend:** Elastic Beanstalk console → your environment → **Actions** → **Terminate
+environment**. Optionally also delete the **Application** itself (Applications list → select →
+**Actions** → **Delete application**) once the environment is gone.
 
-```bash
-aws s3 rb s3://<your-unique-bucket-name> --force
-```
+**Frontend:** CloudFront console → select your distribution → **Disable** (takes a few minutes
+to take effect) → once disabled, **Delete**. Then S3 console → select your bucket → **Empty**
+(deletes all objects) → **Delete** the bucket.
 
-Then in the CloudFront console, disable and delete the distribution (CloudFront requires
-disabling before deletion, and disabling can take several minutes to take effect).
+> **Prefer the CLI?**
+> ```bash
+> cd mern-chat-backend
+> eb terminate mern-chat-env
+> ```
+> ```bash
+> aws s3 rb s3://<your-unique-bucket-name> --force
+> ```
+> CloudFront distributions still need to be disabled/deleted via console either way (no simple
+> one-line CLI equivalent).
