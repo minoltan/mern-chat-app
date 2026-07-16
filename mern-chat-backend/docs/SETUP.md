@@ -59,6 +59,32 @@ establishes a connection and queries time out waiting for one. To fix it:
    - `0.0.0.0/0` — allow from anywhere (convenient for local dev with a dynamic IP; do not use in production).
 5. Wait ~1 minute for the change to propagate, then restart the server.
 
+### Troubleshooting: `querySrv ECONNREFUSED` on `MONGO_URL`
+
+If you see something like:
+
+```
+Mongodb connected failed Error: querySrv ECONNREFUSED _mongodb._tcp.<cluster>.mongodb.net
+```
+
+This happens *before* Atlas is ever reached. `mongodb+srv://` connection strings need a DNS
+`SRV` record lookup to discover the actual cluster hosts, and your network's DNS resolver is
+refusing that lookup — common on some routers/ISPs, school/corporate networks, or VPNs that
+don't support (or block) SRV-type DNS records. To fix it, try in order:
+
+1. **Switch DNS servers.** On Windows: Settings → Network & Internet → Change adapter options
+   → right-click your active adapter → Properties → Internet Protocol Version 4 (TCP/IPv4) →
+   Properties → set DNS to `8.8.8.8` / `8.8.4.4` (Google) or `1.1.1.1` (Cloudflare).
+2. Flush the DNS cache afterward: `ipconfig /flushdns`, then run `npm start` again.
+3. If you're on a VPN, disconnect it and retry.
+4. To confirm it's a DNS/network issue and not the app, run:
+   `nslookup -type=SRV _mongodb._tcp.<cluster>.mongodb.net` — if that also fails, it's
+   network-side, not something the code can fix.
+5. **If DNS settings can't be changed** (locked-down network): in Atlas, go to
+   Database → Connect → Drivers and use the **standard (non-SRV) connection string**
+   instead of the `mongodb+srv://` one — it lists the replica set hosts directly
+   (`mongodb://host1,host2,host3/...`) and skips the SRV lookup entirely.
+
 ## 4. Verify
 
 - API root: http://localhost:5000/
