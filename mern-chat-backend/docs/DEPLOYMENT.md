@@ -205,14 +205,57 @@ a sensitive production system).
 
 On the environment dashboard, click the URL shown near the top (same
 `...elasticbeanstalk.com` address from step 3) — it opens in a browser. You should see the same
-JSON welcome response as `http://localhost:5000/` locally. Also check:
+JSON welcome response as `http://localhost:5000/` locally. That confirms the app is running, but
+**not** that it's connected to Mongo — the root route (`server.js`, the `app.get("/", ...)`
+handler) doesn't touch the database at all, so it'll respond fine even if the DB connection
+failed. Check the DB connection specifically as below.
 
-- `https://<your-eb-url>/api-docs` — Swagger docs load
-- If it's not working, go to the environment's **Logs** page in the left sidebar → **Request
-  logs** → **Last 100 lines**, which shows the same output as running the app locally
-  (including the `Connected to DB` line if Mongo connected successfully).
+> **Prefer the CLI?** `eb open` opens the URL directly.
 
-> **Prefer the CLI?** `eb open` opens the URL directly, and `eb logs` fetches the logs.
+#### Verify the database connected
+
+The app logs the connection result once, at startup (`server.js`'s
+`mongoose.connect(...).then(...).catch(...)`). To see it:
+
+1. On the environment dashboard, go to **Logs** in the left sidebar.
+2. Click **Request logs** → **Last 100 lines** → wait for it to generate → click the resulting
+   link to view them.
+3. Look for one of these lines near the top (from the most recent app start):
+   - `Connected to DB` → success, skip the troubleshooting below.
+   - `Mongodb connected failed <SomeError>: ...` → connection failed; see below.
+   - Neither line present → the app likely crashed before reaching that point (check further up
+     the log for a stack trace), or you're looking at logs from before `MONGO_URL` was set —
+     restart with **Actions → Restart app server(s)** and pull fresh logs.
+
+As a second, functional check: open `https://<your-eb-url>/api-docs`, expand
+**POST /users/register**, click **Try it out**, fill in a test username/email/password, and
+**Execute**. A `201` response confirms a real round trip to the database (it wouldn't return
+that without successfully querying and writing to Mongo); a `500`/timeout confirms the DB
+connection is the problem, not just the log line.
+
+> **Prefer the CLI?** `eb logs` fetches the same request logs to your terminal.
+
+#### Troubleshooting: connection failed
+
+Same underlying causes as the local-dev troubleshooting in [SETUP.md](SETUP.md), but the fixes
+differ slightly on EB:
+
+- **`MongooseServerSelectionError: Could not connect to any servers...` /
+  `buffering timed out after 10000ms`** — Atlas's Network Access list doesn't include EB's
+  outbound IP. Double check you completed step 5 above (added `0.0.0.0/0`, or the EC2 instance's
+  specific IP, to Atlas → **Network Access**) — this is the most common cause after a fresh EB
+  deploy. Also confirm you're looking at the same Atlas **project** the cluster actually
+  belongs to (easy to add the IP to the wrong project if you have more than one).
+- **`Authentication failed`** — the username/password embedded in `MONGO_URL` doesn't match a
+  user under Atlas → **Database Access**, or the user lacks permissions on this database. Note
+  this is a *different* screen from Network Access.
+- **`querySrv ECONNREFUSED`** — DNS can't resolve the `mongodb+srv://` SRV record. Rare on EC2
+  (AWS's DNS resolver supports SRV lookups fine), but if you hit it, switch to the non-SRV
+  standard connection string from Atlas → **Connect** → **Drivers**, and update `MONGO_URL` via
+  step 4 above.
+- **Nothing changed after fixing it** — environment properties only take effect after the app
+  restarts. Re-apply the environment property (step 4) or use **Actions → Restart app server(s)**
+  on the environment dashboard, then pull fresh logs.
 
 Keep the EB URL — you'll need it for `VITE_API_URL` in Part 2.
 
