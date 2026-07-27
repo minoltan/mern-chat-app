@@ -3,10 +3,14 @@ sequenceDiagram
     participant ClientB as Client B
     participant Socket as socket.js
     participant Map as connectedUsers Map
+    participant REST as REST API messageRoutes.js
+    participant DB as MongoDB
 
+    Note over ClientA,Socket: Connect - Chat.jsx opens one socket per session on mount<br/>io(ENDPOINT, { auth: { user: userInfo } })
     ClientA->>Socket: io connect with auth user, triggers connection event
-    Socket->>Socket: user = socket.handshake.auth.user, no JWT check
+    Socket->>Socket: user = socket.handshake.auth.user, no JWT check<br/>(unverified - a deliberate simplification, see LECTURE.md)
 
+    Note over ClientA,Map: Groups double as Socket.IO rooms - joining a group's<br/>chat = socket.join(groupId). This is how members of<br/>the same group become "interconnected": the server<br/>fans out events only to sockets that joined that room.
     ClientA->>Socket: emit join room with groupId
     Socket->>Socket: socket.join(groupId)
     Socket->>Map: connectedUsers.set socket.id, user and room
@@ -16,18 +20,27 @@ sequenceDiagram
 
     ClientA->>Socket: emit typing with groupId and username
     Socket-->>ClientB: emit user typing with username
+    Note over Socket,ClientB: Typing state is ephemeral - broadcast only,<br/>never written to the DB or the presence Map
 
     ClientA->>Socket: emit stop typing with groupId
     Socket-->>ClientB: emit user stop typing with username
 
-    ClientA->>Socket: emit new message with message containing groupId
+    Note over ClientA,DB: Sending a message is two separate client calls -<br/>ChatArea.jsx's sendMessage() does both, in order.<br/>See 07-send-message.mmd for the REST leg in detail.
+    ClientA->>REST: 1. POST /api/messages { content, groupId }, Bearer token
+    REST->>DB: Message.create + populate sender
+    DB-->>REST: populatedMessage
+    REST-->>ClientA: 200 populatedMessage - this is the source of truth
+    ClientA->>Socket: 2. emit new message with populatedMessage, groupId
     Socket-->>ClientB: emit message received, relay only, no DB write
+    Note over Socket: socket.to(groupId) excludes the sender - ClientA already<br/>has the message from the REST response, so it appends<br/>it locally instead of waiting for this echo
 
     ClientA->>Socket: emit leave room with groupId
     Socket->>Socket: socket.leave(groupId)
     Socket->>Map: connectedUsers.delete socket.id
     Socket-->>ClientB: emit user left with user id
 
-    Note over ClientA,Socket: On disconnect event, tab close or network drop
+    Note over ClientA,Socket: On disconnect event, tab close or network drop -<br/>same cleanup as an explicit leave room
     Socket->>Map: lookup and delete connectedUsers entry
     Socket-->>ClientB: emit user left with user id
+
+    Note over Map: connectedUsers is an in-memory Map local to this<br/>server process. Presence resets on restart and would<br/>need a shared store (e.g. Redis) to scale beyond one instance.
